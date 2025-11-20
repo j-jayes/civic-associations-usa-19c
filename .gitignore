@@ -214,9 +214,24 @@ __marimo__/
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Logs
+# Allow specific test data outputs from GitHub Actions
+!data/raw/buffalo_1862/
+!data/raw/buffalo_1862/**
+!data/interim/ocr/buffalo_1862/
+!data/interim/ocr/buffalo_1862/**
+!data/interim/sections/buffalo_1862/
+!data/interim/sections/buffalo_1862/**
+!data/interim/extractions/buffalo_1862/
+!data/interim/extractions/buffalo_1862/**
+
+# Logs - but allow workflow logs
 logs/
 *.log
+!logs/pipeline_summary.md
+!logs/*_build_manifest.log
+!logs/*_run_ocr.log
+!logs/*_find_sections.log
+!logs/*_extract_associations.log
 
 # SQLite databases
 *.sqlite

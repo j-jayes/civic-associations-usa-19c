@@ -30,6 +30,26 @@ The design should be:
 
 **Important practical note:** Sites like ancestry.com have restrictive ToS and copyright constraints. The repo should treat input as “images living in `data/raw/` with a manifest” and keep scraping/acquisition logic out-of-scope or in a separate, clearly ToS-respecting step.
 
+
+## Automated Testing with GitHub Actions
+
+The repository includes an automated testing workflow that runs the complete pipeline on test images. See [docs/github-actions-workflow.md](docs/github-actions-workflow.md) for details.
+
+**Quick start:**
+- Manually trigger: `Actions → Test Docling OCR and Extraction Pipeline → Run workflow`
+- Auto-triggers on new images in `data/raw/*/images/`
+- Results are committed to the branch and available as artifacts
+
+**What it does:**
+1. Builds manifest from test images
+2. Runs OCR with Docling
+3. Finds civic association sections
+4. Extracts structured data with Gemini LLM
+5. Commits all outputs and logs to the repository
+
+**Test data:** Currently configured for `buffalo_1862` with 3 test images.
+
+---
 ---
 
 ## 2. Data model (Pydantic)

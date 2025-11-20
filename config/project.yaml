@@ -1,0 +1,21 @@
+# Project Configuration
+# Base paths, database URI, and general settings
+
+project:
+  name: "civic-associations-usa-19c"
+  version: "0.1.0"
+
+paths:
+  data_root: "data/"
+  raw: "data/raw/"
+  interim: "data/interim/"
+  processed: "data/processed/"
+  
+database:
+  type: "sqlite"
+  path: "data/processed/associations.sqlite"
+  
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/pipeline.log"

@@ -1,0 +1,32 @@
+# Verification Configuration
+# Settings for multi-run self-consistency checks
+
+verification:
+  # Minimum similarity score to accept a record (0.0 to 1.0)
+  min_similarity: 0.9
+  
+  # Minimum number of runs that must exactly match
+  min_exact_match_runs: 2
+  
+  # Similarity metrics to use
+  metrics:
+    - "levenshtein"
+    - "token_set"
+    
+  # Field-specific rules
+  field_rules:
+    name:
+      required: true
+      similarity_weight: 2.0
+    association_type:
+      required: false
+      similarity_weight: 1.0
+    members:
+      required: false
+      similarity_weight: 1.5
+      
+  # Output handling
+  output:
+    accepted_records: "data/processed/associations.sqlite"
+    review_needed: "data/processed/review_needed.jsonl"
+    rejected_records: "data/processed/rejected.jsonl"

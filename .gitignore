@@ -205,3 +205,24 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Data science specific
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# SQLite databases
+*.sqlite
+*.db
+
+# Model checkpoints and caches
+models/
+checkpoints/
+.cache/

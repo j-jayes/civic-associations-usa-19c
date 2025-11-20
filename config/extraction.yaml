@@ -1,0 +1,35 @@
+# LLM Extraction Configuration
+# Settings for association extraction using LLM
+
+extraction:
+  mode: "text"  # "text" or "multimodal" (to include images)
+  
+  llm:
+    model_name: "gemini-2.5-flash"
+    temperature: 0.1
+    max_tokens: 4096
+    api_timeout: 30
+    
+  verification:
+    repeats: 3  # Number of extraction runs for self-consistency
+    
+  prompts:
+    system_prompt: |
+      You are an expert at extracting structured data from 19th-century US city directories.
+      You will be given sections from civic association listings and must extract:
+      - Association name
+      - Association type (temperance, masonic, hunting, etc.)
+      - Members and their roles
+      Focus on accuracy and completeness.
+      
+    examples:
+      - input: "Boston Temperance Society - President: John Smith, Secretary: Mary Jones"
+        output: |
+          {
+            "name": "Boston Temperance Society",
+            "association_type": "temperance",
+            "members": [
+              {"full_name": "John Smith", "role": "President"},
+              {"full_name": "Mary Jones", "role": "Secretary"}
+            ]
+          }

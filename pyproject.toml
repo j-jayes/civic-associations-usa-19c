@@ -1,0 +1,81 @@
+[project]
+name = "civic-associations-usa-19c"
+version = "0.1.0"
+description = "Extract civic associations from 19th-century US city directories"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Jonathan Jayes"}
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+
+ocr = [
+    "docling>=0.1.0",
+    "rapidocr-onnxruntime>=1.3.0",
+    "pillow>=10.0.0",
+]
+
+extraction = [
+    "google-generativeai>=0.3.0",
+    "openai>=1.0.0",
+]
+
+all = [
+    "civic-associations-usa-19c[dev,ocr,extraction]",
+]
+
+[project.scripts]
+build-manifest = "scripts.build_manifest:main"
+run-ocr = "scripts.run_ocr:main"
+find-sections = "scripts.find_sections:main"
+extract-associations = "scripts.extract_associations:main"
+verify-and-load = "scripts.verify_and_load:main"
+export-data = "scripts.export_for_analysis:main"
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["civic_associations"]

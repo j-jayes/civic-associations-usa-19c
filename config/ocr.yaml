@@ -1,0 +1,23 @@
+# OCR Configuration
+# Settings for OCR engine (docling + RapidOCR)
+
+ocr:
+  engine: "docling"  # Primary OCR engine
+  
+  docling:
+    backend: "rapidocr"  # RapidOCR backend
+    confidence_threshold: 0.5
+    output_format: "markdown"
+    
+  cache:
+    enabled: true
+    directory: "data/interim/ocr_cache/"
+    
+  processing:
+    batch_size: 10
+    max_workers: 4  # Parallel processing workers
+    
+  output:
+    save_markdown: true
+    save_plain_text: true
+    save_metadata: true

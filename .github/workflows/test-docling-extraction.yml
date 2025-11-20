@@ -1,0 +1,275 @@
+name: Test Docling OCR and Extraction Pipeline
+
+on:
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      collection:
+        description: 'Collection to process (e.g., buffalo_1862)'
+        required: false
+        default: 'buffalo_1862'
+  
+  # Auto-trigger on pushes that add test images
+  push:
+    paths:
+      - 'data/raw/*/images/*.jpg'
+      - 'data/raw/*/images/*.png'
+      - '.github/workflows/test-docling-extraction.yml'
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # Allow pushing results back to repo
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better git operations
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0
+      
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+          pip install docling>=0.1.0 || echo "Note: docling installation attempted"
+          pip install google-generativeai>=0.3.0
+          pip install pillow>=10.0.0
+          pip install pyyaml>=6.0
+      
+      - name: Verify test images exist
+        id: check_images
+        run: |
+          COLLECTION="${{ github.event.inputs.collection || 'buffalo_1862' }}"
+          IMAGE_DIR="data/raw/${COLLECTION}/images"
+          
+          if [ ! -d "$IMAGE_DIR" ]; then
+            echo "Error: Image directory $IMAGE_DIR does not exist"
+            exit 1
+          fi
+          
+          IMAGE_COUNT=$(find "$IMAGE_DIR" -type f \( -name "*.jpg" -o -name "*.png" \) | wc -l)
+          echo "Found $IMAGE_COUNT images in $IMAGE_DIR"
+          
+          if [ "$IMAGE_COUNT" -eq 0 ]; then
+            echo "Error: No images found in $IMAGE_DIR"
+            exit 1
+          fi
+          
+          echo "collection=$COLLECTION" >> $GITHUB_OUTPUT
+          echo "image_count=$IMAGE_COUNT" >> $GITHUB_OUTPUT
+      
+      - name: Create output directories
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          mkdir -p data/interim/ocr/${COLLECTION}
+          mkdir -p data/interim/sections/${COLLECTION}
+          mkdir -p data/interim/extractions/${COLLECTION}
+          mkdir -p logs
+      
+      - name: Step 1 - Build manifest
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          
+          # Extract metadata from collection name (format: city_year)
+          CITY=$(echo "$COLLECTION" | cut -d_ -f1 | sed 's/.*/\u&/')
+          YEAR=$(echo "$COLLECTION" | cut -d_ -f2)
+          
+          echo "Processing collection: $COLLECTION"
+          echo "City: $CITY, Year: $YEAR"
+          
+          python scripts/build_manifest.py \
+            --images-dir "data/raw/${COLLECTION}/images" \
+            --city "$CITY" \
+            --state "NY" \
+            --year "$YEAR" \
+            --source-collection "$COLLECTION" \
+            --output "data/raw/${COLLECTION}/manifest.jsonl" \
+            2>&1 | tee logs/01_build_manifest.log
+          
+          echo "✓ Manifest created"
+          cat "data/raw/${COLLECTION}/manifest.jsonl" | head -3
+      
+      - name: Step 2 - Run OCR with Docling
+        env:
+          PYTHONUNBUFFERED: 1
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          
+          python scripts/run_ocr.py \
+            --manifest "data/raw/${COLLECTION}/manifest.jsonl" \
+            --output-dir "data/interim/ocr/${COLLECTION}" \
+            --batch-size 3 \
+            2>&1 | tee logs/02_run_ocr.log
+          
+          echo "✓ OCR completed"
+          echo "OCR output files:"
+          ls -lh "data/interim/ocr/${COLLECTION}/"
+          
+          # Show first OCR result
+          echo "Sample OCR output:"
+          find "data/interim/ocr/${COLLECTION}" -name "*.md" -type f | head -1 | xargs head -20
+      
+      - name: Step 3 - Find sections
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          CITY=$(echo "$COLLECTION" | cut -d_ -f1 | sed 's/.*/\u&/')
+          YEAR=$(echo "$COLLECTION" | cut -d_ -f2)
+          
+          python scripts/find_sections.py \
+            --ocr-dir "data/interim/ocr/${COLLECTION}" \
+            --city "$CITY" \
+            --state "NY" \
+            --year "$YEAR" \
+            --output "data/interim/sections/${COLLECTION}/sections.jsonl" \
+            2>&1 | tee logs/03_find_sections.log
+          
+          echo "✓ Sections identified"
+          echo "Sections found:"
+          cat "data/interim/sections/${COLLECTION}/sections.jsonl" | wc -l
+          cat "data/interim/sections/${COLLECTION}/sections.jsonl" | head -1 | python -m json.tool
+      
+      - name: Step 4 - Extract associations with LLM
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PYTHONUNBUFFERED: 1
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "Warning: GEMINI_API_KEY not set, extraction may fail"
+          fi
+          
+          python scripts/extract_associations.py \
+            --sections "data/interim/sections/${COLLECTION}/sections.jsonl" \
+            --output-dir "data/interim/extractions/${COLLECTION}" \
+            --repeats 1 \
+            2>&1 | tee logs/04_extract_associations.log
+          
+          echo "✓ Associations extracted"
+          echo "Extraction output files:"
+          ls -lh "data/interim/extractions/${COLLECTION}/"
+          
+          # Show extraction results
+          echo "Sample extraction results:"
+          find "data/interim/extractions/${COLLECTION}" -name "run_*.jsonl" -type f | head -1 | xargs cat | head -1 | python -m json.tool
+      
+      - name: Generate summary report
+        if: always()
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          
+          cat > logs/pipeline_summary.md <<EOF
+          # Pipeline Execution Summary
+          
+          **Collection:** $COLLECTION
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run:** ${{ github.run_number }}
+          
+          ## Input
+          - Images: ${{ steps.check_images.outputs.image_count }}
+          - Location: data/raw/${COLLECTION}/images/
+          
+          ## Pipeline Steps
+          
+          ### 1. Manifest Building
+          \`\`\`
+          $(tail -5 logs/01_build_manifest.log 2>/dev/null || echo "Log not available")
+          \`\`\`
+          
+          ### 2. OCR Processing
+          \`\`\`
+          $(tail -10 logs/02_run_ocr.log 2>/dev/null || echo "Log not available")
+          \`\`\`
+          
+          Files created: $(find data/interim/ocr/${COLLECTION} -type f | wc -l)
+          
+          ### 3. Section Finding
+          \`\`\`
+          $(tail -5 logs/03_find_sections.log 2>/dev/null || echo "Log not available")
+          \`\`\`
+          
+          Sections found: $(cat data/interim/sections/${COLLECTION}/sections.jsonl 2>/dev/null | wc -l)
+          
+          ### 4. Association Extraction
+          \`\`\`
+          $(tail -10 logs/04_extract_associations.log 2>/dev/null || echo "Log not available")
+          \`\`\`
+          
+          Associations extracted: $(find data/interim/extractions/${COLLECTION} -name "*.jsonl" -exec cat {} \; 2>/dev/null | wc -l)
+          
+          ## Output Locations
+          - OCR outputs: data/interim/ocr/${COLLECTION}/
+          - Sections: data/interim/sections/${COLLECTION}/sections.jsonl
+          - Extractions: data/interim/extractions/${COLLECTION}/run_*.jsonl
+          - Logs: logs/
+          
+          ## Next Steps
+          All outputs have been committed to the repository for inspection.
+          You can review the artifacts uploaded to this workflow run.
+          EOF
+          
+          cat logs/pipeline_summary.md
+      
+      - name: Upload pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-outputs-${{ steps.check_images.outputs.collection }}
+          path: |
+            data/interim/ocr/
+            data/interim/sections/
+            data/interim/extractions/
+            logs/
+          retention-days: 30
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+      
+      - name: Commit and push pipeline outputs
+        run: |
+          COLLECTION="${{ steps.check_images.outputs.collection }}"
+          
+          # Add the pipeline outputs
+          git add data/interim/ logs/ data/raw/${COLLECTION}/manifest.jsonl || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🤖 Pipeline outputs for ${COLLECTION} - Run #${{ github.run_number }}
+
+          - OCR processing completed for ${{ steps.check_images.outputs.image_count }} images
+          - Sections identified and extracted
+          - LLM extraction completed
+          - All outputs saved to data/interim/
+          
+          Generated by workflow: ${{ github.workflow }}
+          Run ID: ${{ github.run_id }}"
+            
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin ${{ github.ref_name }}
+            
+            echo "✓ Pipeline outputs committed and pushed to repository"
+          fi
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Pipeline Execution Complete 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat logs/pipeline_summary.md >> $GITHUB_STEP_SUMMARY

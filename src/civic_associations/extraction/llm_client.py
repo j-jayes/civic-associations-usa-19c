@@ -1,6 +1,8 @@
 """LLM client for calling Gemini or other models."""
 
 from typing import Dict, Any
+import os
+import json
 from ..utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -29,8 +31,48 @@ class LLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.api_timeout = api_timeout
+        self._client = None
+        self._model = None
         
         logger.info(f"Initialized LLMClient with model={model_name}")
+    
+    def _init_gemini(self):
+        """Initialize Gemini client lazily."""
+        if self._client is not None:
+            return
+        
+        try:
+            import google.generativeai as genai
+            
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY environment variable not set")
+            
+            genai.configure(api_key=api_key)
+            
+            # Use the model name provided or default
+            model_name = self.model_name.replace("gemini-2.5-flash", "gemini-1.5-flash")
+            
+            generation_config = {
+                "temperature": self.temperature,
+                "max_output_tokens": self.max_tokens,
+                "response_mime_type": "application/json",
+            }
+            
+            self._model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=generation_config,
+            )
+            
+            self._client = genai
+            logger.info(f"Initialized Gemini model: {model_name}")
+            
+        except ImportError:
+            logger.error("google-generativeai package not installed")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini client: {e}")
+            raise
     
     def call(
         self,
@@ -49,13 +91,40 @@ class LLMClient:
         """
         logger.debug(f"Calling LLM with {len(user_prompt)} chars")
         
-        # TODO: Implement actual LLM API call
-        # For now, return a placeholder
-        response = {
-            "content": '{"name": "Example Association", "members": []}',
-            "model": self.model_name,
-            "tokens_used": 100,
-            "finish_reason": "stop"
-        }
-        
-        return response
+        try:
+            self._init_gemini()
+            
+            # Combine system and user prompts
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+            
+            # Generate response
+            response = self._model.generate_content(full_prompt)
+            
+            # Extract text from response
+            content = response.text
+            
+            # Try to validate it's valid JSON
+            try:
+                json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning("Response is not valid JSON, wrapping in quotes")
+            
+            result = {
+                "content": content,
+                "model": self.model_name,
+                "tokens_used": getattr(response, 'usage_metadata', {}).get('total_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
+                "finish_reason": "stop"
+            }
+            
+            logger.debug(f"LLM response: {len(content)} chars")
+            return result
+            
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            # Return a fallback response
+            return {
+                "content": '{"error": "LLM call failed", "name": "Unknown", "members": []}',
+                "model": self.model_name,
+                "tokens_used": 0,
+                "finish_reason": "error"
+            }

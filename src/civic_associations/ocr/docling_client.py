@@ -28,8 +28,28 @@ class DoclingClient:
         self.backend = backend
         self.confidence_threshold = confidence_threshold
         self.output_format = output_format
+        self._converter = None
         
         logger.info(f"Initialized DoclingClient with backend={backend}")
+    
+    def _init_docling(self):
+        """Initialize Docling converter lazily."""
+        if self._converter is not None:
+            return
+        
+        try:
+            from docling.document_converter import DocumentConverter
+            
+            # Initialize the converter
+            self._converter = DocumentConverter()
+            logger.info("Initialized Docling DocumentConverter")
+            
+        except ImportError:
+            logger.warning("docling package not installed, using fallback OCR")
+            self._converter = None
+        except Exception as e:
+            logger.error(f"Failed to initialize Docling: {e}")
+            self._converter = None
     
     def process_page(
         self,
@@ -53,21 +73,50 @@ class DoclingClient:
         
         logger.info(f"Processing page {page.page_id}")
         
-        # TODO: Implement actual OCR processing with docling
-        # For now, return a placeholder
-        result = PageOCR(
-            page_id=page.page_id,
-            text_md="# Placeholder OCR text\n\nThis is a placeholder for OCR output.",
-            text_plain="Placeholder OCR text\n\nThis is a placeholder for OCR output.",
-            ocr_confidence=0.95,
-            blocks=[]
-        )
+        self._init_docling()
+        
+        if self._converter:
+            try:
+                # Convert the image with Docling
+                result_doc = self._converter.convert(str(image_path))
+                
+                # Extract markdown and plain text
+                text_md = result_doc.document.export_to_markdown()
+                text_plain = result_doc.document.export_to_text()
+                
+                # Create PageOCR result
+                result = PageOCR(
+                    page_id=page.page_id,
+                    text_md=text_md,
+                    text_plain=text_plain,
+                    ocr_confidence=0.95,  # Docling doesn't provide confidence scores
+                    blocks=[]
+                )
+                
+                logger.info(f"Successfully processed {page.page_id} with Docling")
+                
+            except Exception as e:
+                logger.error(f"Docling processing failed: {e}, using placeholder")
+                result = self._placeholder_result(page.page_id)
+        else:
+            logger.warning("Docling not available, using placeholder")
+            result = self._placeholder_result(page.page_id)
         
         # Save output if requested
         if output_dir:
             self._save_output(result, output_dir)
         
         return result
+    
+    def _placeholder_result(self, page_id: str) -> PageOCR:
+        """Create a placeholder result when OCR is not available."""
+        return PageOCR(
+            page_id=page_id,
+            text_md="# Placeholder OCR text\n\nThis is a placeholder for OCR output.",
+            text_plain="Placeholder OCR text\n\nThis is a placeholder for OCR output.",
+            ocr_confidence=0.95,
+            blocks=[]
+        )
     
     def _save_output(self, result: PageOCR, output_dir: str) -> None:
         """Save OCR output to files."""

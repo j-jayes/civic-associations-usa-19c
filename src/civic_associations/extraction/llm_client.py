@@ -13,7 +13,7 @@ class LLMClient:
     
     def __init__(
         self,
-        model_name: str = "gemini-1.5-flash",
+        model_name: str = "gemini-2.0-flash-exp",
         temperature: float = 0.1,
         max_tokens: int = 4096,
         api_timeout: int = 30
@@ -51,10 +51,14 @@ class LLMClient:
             genai.configure(api_key=api_key)
             
             # Map model names to ensure compatibility with available Gemini models
-            # As of 2025, available models are: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
+            # As of Nov 2024, available models include:
+            #   - gemini-1.5-flash, gemini-1.5-pro (stable)
+            #   - gemini-2.0-flash-exp (experimental, recommended for latest features)
+            # Note: "gemini-2.5-flash" does not exist - likely confusion with version numbering
             model_mapping = {
-                "gemini-2.5-flash": "gemini-2.0-flash-exp",  # 2.5 doesn't exist, map to 2.0
-                "gemini-2.5-pro": "gemini-1.5-pro",  # 2.5 doesn't exist, map to 1.5
+                "gemini-2.5-flash": "gemini-2.0-flash-exp",  # 2.5 doesn't exist, map to 2.0 exp
+                "gemini-2.5-pro": "gemini-1.5-pro",  # 2.5 doesn't exist, map to 1.5 pro
+                "gemini-1.5-flash": "gemini-2.0-flash-exp",  # Upgrade to 2.0 for better performance
             }
             
             model_name = model_mapping.get(self.model_name, self.model_name)
@@ -62,7 +66,7 @@ class LLMClient:
             # Validate it's a Gemini model
             if not model_name.startswith("gemini-"):
                 logger.warning(f"Model {model_name} doesn't appear to be a Gemini model, using default")
-                model_name = "gemini-1.5-flash"
+                model_name = "gemini-2.0-flash-exp"
             
             if model_name != self.model_name:
                 logger.info(f"Mapped model {self.model_name} to {model_name}")

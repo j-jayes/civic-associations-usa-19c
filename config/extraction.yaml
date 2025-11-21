@@ -5,7 +5,7 @@ extraction:
   mode: "text"  # "text" or "multimodal" (to include images)
   
   llm:
-    model_name: "gemini-1.5-flash"
+    model_name: "gemini-2.0-flash-exp"
     temperature: 0.1
     max_tokens: 4096
     api_timeout: 30

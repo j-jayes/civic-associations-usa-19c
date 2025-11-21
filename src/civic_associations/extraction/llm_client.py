@@ -13,7 +13,7 @@ class LLMClient:
     
     def __init__(
         self,
-        model_name: str = "gemini-2.5-flash",
+        model_name: str = "gemini-1.5-flash",
         temperature: float = 0.1,
         max_tokens: int = 4096,
         api_timeout: int = 30
@@ -50,8 +50,17 @@ class LLMClient:
             
             genai.configure(api_key=api_key)
             
-            # Use the model name provided or default
-            model_name = self.model_name.replace("gemini-2.5-flash", "gemini-1.5-flash")
+            # Use the model name provided, ensuring it's a valid Gemini model
+            # Map common variations to actual model names
+            model_name = self.model_name
+            if "gemini-2.5" in model_name:
+                # gemini-2.5 doesn't exist, use 2.0-flash-exp or fall back to 1.5-flash
+                model_name = "gemini-2.0-flash-exp"
+                logger.info(f"Mapping {self.model_name} to {model_name}")
+            elif "gemini-2.0" not in model_name and "gemini-1.5" not in model_name:
+                # Default to gemini-1.5-flash if unrecognized
+                model_name = "gemini-1.5-flash"
+                logger.info(f"Using default model: {model_name}")
             
             generation_config = {
                 "temperature": self.temperature,

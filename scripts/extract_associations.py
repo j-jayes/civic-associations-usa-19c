@@ -54,7 +54,7 @@ def main():
     
     # Initialize client and extractor
     client = LLMClient(
-        model_name=llm_config.get("model_name", "gemini-2.5-flash"),
+        model_name=llm_config.get("model_name", "gemini-1.5-flash"),
         temperature=llm_config.get("temperature", 0.1),
         max_tokens=llm_config.get("max_tokens", 4096)
     )

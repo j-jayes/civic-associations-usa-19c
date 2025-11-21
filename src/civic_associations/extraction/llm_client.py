@@ -52,7 +52,7 @@ class LLMClient:
             genai.configure(api_key=api_key)
 
             # Map model names to ensure compatibility with available Gemini models
-            # As of Nov 2024, available models include:
+            # As of November 2025, available models include:
             #   - gemini-1.5-flash, gemini-1.5-pro (stable)
             #   - gemini-2.0-flash-exp (experimental, recommended for latest features)
             # Note: "gemini-2.5-flash" does not exist - likely confusion with version numbering

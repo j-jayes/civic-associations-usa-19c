@@ -8,7 +8,7 @@ from civic_associations.models import Section, AssociationRecord
 def test_llm_client_init():
     """Test LLMClient initialization."""
     client = LLMClient()
-    assert client.model_name == "gemini-2.5-flash"
+    assert client.model_name == "gemini-2.0-flash-exp"
     assert client.temperature == 0.1
 
 

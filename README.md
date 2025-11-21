@@ -25,7 +25,7 @@ The design should be:
 
 1. **Ingestion** – get images + metadata into a clean manifest.
 2. **OCR + Sectioning** – turn images → text; identify relevant sections.
-3. **LLM Extraction** – parse sections into Pydantic models using Gemini 2.5-flash.
+3. **LLM Extraction** – parse sections into Pydantic models using Gemini 2.0 Flash (gemini-2.0-flash-exp).
 4. **Verification + Storage** – self-consistency checks, then store in SQLite.
 
 **Important practical note:** Sites like ancestry.com have restrictive ToS and copyright constraints. The repo should treat input as “images living in `data/raw/` with a manifest” and keep scraping/acquisition logic out-of-scope or in a separate, clearly ToS-respecting step.
@@ -288,7 +288,7 @@ class ExtractionInput(BaseModel):
 
 ```yaml
 mode: "text"        # "multimodal" to also pass images
-model_name: "gemini-2.5-flash"
+model_name: "gemini-2.0-flash-exp"  # Latest Gemini Flash model (experimental)
 temperature: 0.1
 max_tokens: 4096
 repeats: 3          # for verification/self-consistency
@@ -486,7 +486,7 @@ Everything is parameterised by **collection** (city+year), so adding more is jus
 
 **Milestone 4 – LLM extraction**
 
-* [ ] Implement `llm_client.py` and config for Gemini 2.5-flash.
+* [ ] Implement `llm_client.py` and config for Gemini 2.0 Flash (gemini-2.0-flash-exp).
 * [ ] Define prompts + `extractor.py`.
 * [ ] Add tests with synthetic sample directory text.
 
